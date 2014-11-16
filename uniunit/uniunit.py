@@ -54,7 +54,7 @@ class Atom(object):
 
     def __rmul__(self, other):
         if isinstance(other, Prefix):
-            return UniUnit(prefix=other, rate=([self], []))
+            return UniUnit(prefix=other, fraction=([self], []))
         else:
             return NotImplemented
 
@@ -63,13 +63,13 @@ class Atom(object):
 
     def __mul__(self, other):
         if isinstance(other, Atom):
-            return UniUnit.make_rate([self, other], [])
+            return UniUnit(fraction=([self, other], []))
         else:
             raise TypeError("Must be Unit.")
 
     def __truediv__(self, other):
         if isinstance(other, Atom):
-            return UniUnit.make_rate([self], [other])
+            return UniUnit(fraction=([self], [other]))
         else:
             raise TypeError("Must be Unit.")
 
@@ -84,6 +84,7 @@ Byte = Atom("B")
 Bit = Atom("b")
 Second = Atom("s")
 Metre = Atom("m")
+Gram = Atom("g")
 one = Prefix("", 1)
 K = Prefix("K", 10 ** 3)
 M = Prefix("M", 10 ** 6)
@@ -92,77 +93,51 @@ u = Prefix("u", 10 ** -6)
 
 
 class UniUnit(object):
-    def __init__(self, prefix=None, atom=None, rate=None, product=None):
+    def __init__(self, prefix=None, atom=None, fraction=None):
         self.prefix = prefix if prefix is not None else one
-        self.atom = atom
-        self.rate = rate
-        self.product = product
-        self._is_atom = False
-        self._is_rate = False
-        self._is_product = False
-        if atom is not None:
-            self._is_atom = True
-            self.rate = ([atom], [])
-        if product is not None:
-            self._is_product = True
-            self.rate = (product, [])
-        if product is not None:
-            self._is_product = True
-        if rate is not None:
-            self._is_rate = True
+        if atom:
+            self.fraction = ([atom], [])
+        self.fraction = fraction
         self.justify()
 
-    @classmethod
-    def make_rate(cls, m, n, prefix=None):
-        return UniUnit(rate=(m, n), prefix=prefix)
-
-    @classmethod
-    def make_product(cls, product):
-        return UniUnit(product=product)
-
     def justify(self):
-        numerator, denominator = self.rate
+        numerator, denominator = self.fraction
         numerator.sort(key=lambda x: x.order_key())
         denominator.sort(key=lambda x: x.order_key())
         for _, n in enumerate(tuple(numerator)):
             if n in denominator:
                 denominator.remove(n)
                 numerator.remove(n)
-        self.rate = numerator, denominator
+        self.fraction = numerator, denominator
 
     def order_key(self):
-        numerator = sum(map(lambda x: x.order_key(), self.rate[0]))
-        denominator = sum(map(lambda x: x.order_key(), self.rate[1]))
+        numerator = sum(map(lambda x: x.order_key(), self.fraction[0]))
+        denominator = sum(map(lambda x: x.order_key(), self.fraction[1]))
         if denominator is 0:
             return numerator
         else:
             return numerator / denominator
 
-    def without_prefix(self):
-        return UniUnit(rate=self.rate)
+    def mul_by(self, other):
+        return UniUnit(fraction=(self.fraction[0] + other.fraction[0],
+                                 self.fraction[1] + other.fraction[1]),
+                       prefix=self.prefix * other.prefix)
 
     def div_by(self, other):
-        sp, op = self.prefix, other.prefix
-        self.prefix, other.prefix = one, one
-        new_uu = UniUnit.make_rate(self.rate[0] + other.rate[1], self.rate[1] + other.rate[0])
-        new_uu.prefix = sp / op
-        return new_uu
-
-    def mul_by(self, other):
-        sp, op = self.prefix, other.prefix
-        self.prefix, other.prefix = one, one
-        new_uu = UniUnit.make_rate(self.rate[0] + other.rate[0], self.rate[1] + other.rate[1])
-        new_uu.prefix = sp * op
-        return new_uu
+        return UniUnit(fraction=(self.fraction[0] + other.fraction[1],
+                                 self.fraction[1] + other.fraction[0]),
+                       prefix=self.prefix / other.prefix)
 
     def __eq__(self, other):
-        return isinstance(other, UniUnit) and self.atom == other.atom
+        return isinstance(other, UniUnit) and self.fraction == other.fraction
 
     def __mul__(self, other):
         if isinstance(other, UniUnit):
             return self.mul_by(other)
         elif isinstance(other, Atom):
-            return UniUnit.make_rate(self.rate[0]+[other], self.rate[1], prefix=self.prefix)
+            return UniUnit(prefix=self.prefix,
+                           fraction=(self.fraction[0] + [other],
+                                     self.fraction[1]))
         else:
             raise TypeError("Must be Unit.")
 
@@ -170,27 +145,32 @@ class UniUnit(object):
         if isinstance(other, UniUnit):
             return self.div_by(other)
         elif isinstance(other, Atom):
-            return UniUnit.make_rate(self.rate[0], self.rate[1] + [other], prefix=self.prefix)
+            return UniUnit(fraction=(self.fraction[0],
+                                     self.fraction[1] + [other]),
+                           prefix=self.prefix)
         else:
             raise TypeError("Must be Unit.")
 
+    def __rmul__(self, other):
+        if not isinstance(other, (int, float, complex)):
+            return NotImplemented
+        else:
+            return United(other, self)
+
     def __str__(self):
-        if self._is_product:
-            us = ''.join(map(str, self.rate[0]))
-        elif self._is_rate:
-            numerator, denominator = self.rate
-            ns = ''.join(map(str, numerator))
-            ds = ''.join(map(str, denominator))
-            us = '{}/{}'.format(ns, ds)
-        elif self._is_atom:
-            us = self.atom.literal
-        else:
-            numerator = self.rate[0]
-            us = ''.join(map(str, numerator))
+        numerator, denominator = self.fraction
+        if not numerator and not denominator:
+            return ''
         if self.prefix:
-            return self.prefix.literal + us
+            ps = self.prefix.literal
         else:
-            return us
+            ps = ''
+        if denominator:
+            vs = "{}/{}".format(''.join(map(str, numerator)),
+                                  ''.join(map(str, denominator)))
+        else:
+            vs = ''.join(map(str, numerator))
+        return ps + vs
 
 
 class United(object):
@@ -240,27 +220,9 @@ class United(object):
             return NotImplemented
 
 
-class Constructor(object):
-    def __init__(self, uunit):
-        self.uunit = uunit
-
-    def __rmul__(self, other):
-        return United(other, self.uunit)
-
-    def __str__(self):
-        return str(self.uunit)
-
-
-Mbps = Constructor(M * Bit / Second)
-Kb = Constructor(K * Bit)
-
+Mbps = M * Bit / Second
+Kb = K * Bit
 if __name__ == '__main__':
     a = 4 * Kb
     b = 16 * Mbps
-    c = a / b
-    print(Mbps)
-    print(c)
-    print(K * K)
-    print(M / K)
-    t = (M * Bit / Second) * Second
-    print(t)
+    print(a/b)
