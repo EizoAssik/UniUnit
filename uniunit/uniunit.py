@@ -1,4 +1,7 @@
 # encoding=utf-8
+import operator
+from functools import reduce
+from itertools import repeat
 
 
 class Prefix(object):
@@ -7,7 +10,7 @@ class Prefix(object):
         10 ** 9: "G",
         10 ** 6: "M",
         10 ** 3: "K",
-        0: "",
+        1: "",
         10 ** -3: "m",
         10 ** -6: "u",
         10 ** -9: "n",
@@ -45,12 +48,13 @@ class Prefix(object):
 
 
 class Atom(object):
-    def __init__(self, literal, order=1):
+    def __init__(self, atom_id, literal, order=1):
+        self.id = atom_id
         self.literal = literal
         self._order_key = order
 
     def __eq__(self, other):
-        return isinstance(other, Atom) and self.literal == other.literal
+        return isinstance(other, Atom) and self.id == other.id
 
     def __rmul__(self, other):
         if isinstance(other, Prefix):
@@ -64,14 +68,27 @@ class Atom(object):
     def __mul__(self, other):
         if isinstance(other, Atom):
             return UniUnit(fraction=([self, other], []))
+        elif isinstance(other, UniUnit):
+            return UniUnit(prefix=other.prefix,
+                           fraction=(other.fraction[0] + [self],
+                                     other.fraction[1]))
         else:
             raise TypeError("Must be Unit.")
 
     def __truediv__(self, other):
         if isinstance(other, Atom):
             return UniUnit(fraction=([self], [other]))
+        elif isinstance(other, UniUnit):
+            return UniUnit(prefix=other.prefix,
+                           fraction=(other.fraction[1] + [self],
+                                     other.fraction[0]))
         else:
-            raise TypeError("Must be Unit.")
+            return NotImplemented
+
+    def __pow__(self, power, modulo=None):
+        if not isinstance(power, int) or modulo:
+            return NotImplemented
+        return reduce(operator.mul, repeat(self, power))
 
     def __repr__(self):
         return "<Atom {} {}>".format(self.literal, self._order_key)
@@ -80,11 +97,12 @@ class Atom(object):
         return self.literal
 
 
-Byte = Atom("B")
-Bit = Atom("b")
-Second = Atom("s")
-Metre = Atom("m")
-Gram = Atom("g")
+Byte = Atom("Byte", "B")
+Bit = Atom("Bit", "b")
+Second = Atom("Second", "s")
+Metre = Atom("Metre", "m")
+Gram = Atom("Gram", "g")
+
 one = Prefix("", 1)
 K = Prefix("K", 10 ** 3)
 M = Prefix("M", 10 ** 6)
@@ -167,7 +185,7 @@ class UniUnit(object):
             ps = ''
         if denominator:
             vs = "{}/{}".format(''.join(map(str, numerator)),
-                                  ''.join(map(str, denominator)))
+                                ''.join(map(str, denominator)))
         else:
             vs = ''.join(map(str, numerator))
         return ps + vs
@@ -222,7 +240,12 @@ class United(object):
 
 Mbps = M * Bit / Second
 Kb = K * Bit
+
 if __name__ == '__main__':
     a = 4 * Kb
     b = 16 * Mbps
-    print(a/b)
+    g = 9.8 * (Metre / Second ** 2)
+    m = 100 * (K * Gram)
+    G = m * g
+    print(a / b)
+    print(G)
