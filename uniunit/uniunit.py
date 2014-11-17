@@ -1,7 +1,8 @@
 # encoding=utf-8
 import operator
 from functools import reduce
-from itertools import repeat
+from itertools import repeat, chain
+from collections import defaultdict
 
 
 class Prefix(object):
@@ -59,6 +60,12 @@ class Atom(object):
         self.literal = literal
         self._order_key = order
 
+    def order_key(self):
+        return self._order_key
+
+    def __hash__(self):
+        return hash(self.id)
+
     def __eq__(self, other):
         return isinstance(other, Atom) and self.id == other.id
 
@@ -67,9 +74,6 @@ class Atom(object):
             return UniUnit(prefix=other, fraction=([self], []))
         else:
             return NotImplemented
-
-    def order_key(self):
-        return self._order_key
 
     def __mul__(self, other):
         if isinstance(other, Atom):
@@ -190,6 +194,51 @@ class UniUnit(object):
                        fraction=(self.fraction[0] * power,
                                  self.fraction[1] * power))
 
+    @staticmethod
+    def format_pair(pair):
+        atom_, e = pair
+        if e == 1:
+            return str(atom_)
+        return "{}^{}".format(*pair)
+
+    def full_exp(self):
+        d = defaultdict(lambda: 0)
+        t = []
+        _rec = []
+        numerator, denominator = self.fraction
+        for i in numerator:
+            d[i] += 1
+        for i in denominator:
+            d[i] -= 1
+        for i in chain(numerator, denominator):
+            if d[i] and i not in _rec:
+                t.append((i, d[i]))
+                _rec.append(i)
+        return ''.join(map(self.format_pair, t))
+
+    def with_exp(self):
+        counter = defaultdict(lambda: 0)
+        n, d = [], []
+        _rec = []
+        numerator, denominator = self.fraction
+        for i in numerator:
+            counter[i] += 1
+        for i in numerator:
+            if not i in _rec:
+                n.append((i, counter[i]))
+                _rec.append(i)
+        _rec.clear()
+        counter.clear()
+        for i in denominator:
+            counter[i] += 1
+        for i in denominator:
+            if not i in _rec:
+                d.append((i, counter[i]))
+                _rec.append(i)
+        formater = lambda x: ''.join(map(self.format_pair, x))
+        return "/".join(map(formater, (n, d)))
+
+
     def __str__(self):
         numerator, denominator = self.fraction
         if not numerator and not denominator:
@@ -217,6 +266,9 @@ class United(object):
 
     def __str__(self):
         return "{}{}".format(self.value, self.uunit)
+
+    def __repr__(self):
+        return "United({!r}, {!r})".format(self.value, self.uunit)
 
     def __add__(self, other):
         if isinstance(other, United):
@@ -256,6 +308,12 @@ class United(object):
         else:
             return NotImplemented
 
+    def __eq__(self, other):
+        return all((isinstance(other, United),
+                    self.value == other.value,
+                    self.uunit == other.uunit))
+
+
 Kilogram = UniUnit(atom=Kilogram)
 Mbps = M * Bit / Second
 Kb = K * Bit
@@ -266,7 +324,11 @@ if __name__ == '__main__':
     g = 9.8 * (Metre / Second ** 2)
     m = 100 * Kilogram
     G = m * g
-    NM = Kilogram * (Metre/Second) ** 2
+    NM = Kilogram * (Metre / Second) ** 2
     print(a / b)
     print(G)
-    print(NM, repr(NM))
+    print(NM, repr(NM), sep='\n')
+    print(eval(repr(NM)) == NM)
+    print(repr(g))
+    print(eval(repr(g)) == g)
+    print(NM.with_exp())
