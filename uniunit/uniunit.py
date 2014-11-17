@@ -2,7 +2,6 @@
 import operator
 from functools import reduce
 from itertools import repeat, chain
-from collections import defaultdict
 
 
 class Prefix(object):
@@ -201,43 +200,27 @@ class UniUnit(object):
             return str(atom_)
         return "{}^{}".format(*pair)
 
+    @classmethod
+    def _dump_atom_lists(cls, *args):
+        retvals = []
+        for arg in args:
+            n, _rec = [], []
+            for i in arg:
+                if i not in _rec:
+                    _rec.append(i)
+                    n.append((i, arg.count(i)))
+            retvals.append(n)
+        return retvals
+
     def full_exp(self):
-        d = defaultdict(lambda: 0)
-        t = []
-        _rec = []
-        numerator, denominator = self.fraction
-        for i in numerator:
-            d[i] += 1
-        for i in denominator:
-            d[i] -= 1
-        for i in chain(numerator, denominator):
-            if d[i] and i not in _rec:
-                t.append((i, d[i]))
-                _rec.append(i)
-        return ''.join(map(self.format_pair, t))
+        en_, ed_ = self._dump_atom_lists(*self.fraction)
+        ed_ = [(a_, -c_) for a_, c_ in ed_]
+        return "".join(map(self.format_pair, chain(en_, ed_)))
 
     def with_exp(self):
-        counter = defaultdict(lambda: 0)
-        n, d = [], []
-        _rec = []
-        numerator, denominator = self.fraction
-        for i in numerator:
-            counter[i] += 1
-        for i in numerator:
-            if not i in _rec:
-                n.append((i, counter[i]))
-                _rec.append(i)
-        _rec.clear()
-        counter.clear()
-        for i in denominator:
-            counter[i] += 1
-        for i in denominator:
-            if not i in _rec:
-                d.append((i, counter[i]))
-                _rec.append(i)
-        formater = lambda x: ''.join(map(self.format_pair, x))
-        return "/".join(map(formater, (n, d)))
-
+        dumped_atoms = self._dump_atom_lists(*self.fraction)
+        formater_ = lambda x: ''.join(map(self.format_pair, x))
+        return "/".join(map(formater_, dumped_atoms))
 
     def __str__(self):
         numerator, denominator = self.fraction
@@ -332,3 +315,4 @@ if __name__ == '__main__':
     print(repr(g))
     print(eval(repr(g)) == g)
     print(NM.with_exp())
+    print(NM.full_exp())
