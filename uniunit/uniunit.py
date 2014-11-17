@@ -52,6 +52,8 @@ class Prefix(object):
         new_value = self.value ** power
         return Prefix(Prefix.CONS.get(new_value, "?"), new_value)
 
+one = Prefix("", 1)
+
 
 class Atom(object):
     def __init__(self, atom_id, literal, order=1):
@@ -104,20 +106,6 @@ class Atom(object):
 
     def __str__(self):
         return self.literal
-
-
-Byte = Atom("Byte", "B")
-Bit = Atom("Bit", "b")
-Second = Atom("Second", "s")
-Metre = Atom("Metre", "m")
-Gram = Atom("Gram", "g")
-Kilogram = Atom("Kilogram", "kg")
-
-one = Prefix("", 1)
-K = Prefix("K", 10 ** 3)
-M = Prefix("M", 10 ** 6)
-m = Prefix("m", 10 ** -3)
-u = Prefix("u", 10 ** -6)
 
 
 class UniUnit(object):
@@ -296,23 +284,3 @@ class United(object):
                     self.value == other.value,
                     self.uunit == other.uunit))
 
-
-Kilogram = UniUnit(atom=Kilogram)
-Mbps = M * Bit / Second
-Kb = K * Bit
-
-if __name__ == '__main__':
-    a = 4 * Kb
-    b = 16 * Mbps
-    g = 9.8 * (Metre / Second ** 2)
-    m = 100 * Kilogram
-    G = m * g
-    NM = Kilogram * (Metre / Second) ** 2
-    print(a / b)
-    print(G)
-    print(NM, repr(NM), sep='\n')
-    print(eval(repr(NM)) == NM)
-    print(repr(g))
-    print(eval(repr(g)) == g)
-    print(NM.with_exp())
-    print(NM.full_exp())
