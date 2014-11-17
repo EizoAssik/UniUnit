@@ -1,5 +1,5 @@
 # encoding=utf-8
-from .uniunit import Prefix, Atom, UniUnit
+from .uniunit import Prefix, Atom, UniUnit, United
 
 
 one = Prefix("", 1)
