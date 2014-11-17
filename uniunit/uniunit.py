@@ -25,10 +25,10 @@ class Prefix(object):
         return isinstance(other, Prefix) and self.value == other.value
 
     def __repr__(self):
-        return "<Prefix {} {}>".format(self.literal, self.value)
+        return "Prefix({!r}, {!r})".format(self.literal, self.value)
 
     def __str__(self):
-        return self.literal
+        return "<Prefix {} {}>".format(self.literal, self.value)
 
     def __truediv__(self, other):
         if not isinstance(other, Prefix):
@@ -45,6 +45,12 @@ class Prefix(object):
         if value in Prefix.CONS:
             return Prefix(Prefix.CONS[value], value)
         return Prefix("?", value)
+
+    def __pow__(self, power, modulo=None):
+        if not isinstance(power, int) or modulo:
+            return NotImplemented
+        new_value = self.value ** power
+        return Prefix(Prefix.CONS.get(new_value, "?"), new_value)
 
 
 class Atom(object):
@@ -91,7 +97,7 @@ class Atom(object):
         return reduce(operator.mul, repeat(self, power))
 
     def __repr__(self):
-        return "<Atom {} {}>".format(self.literal, self._order_key)
+        return "Atom({!r}, {!r}, order={!r})".format(self.id, self.literal, self._order_key)
 
     def __str__(self):
         return self.literal
@@ -102,6 +108,7 @@ Bit = Atom("Bit", "b")
 Second = Atom("Second", "s")
 Metre = Atom("Metre", "m")
 Gram = Atom("Gram", "g")
+Kilogram = Atom("Kilogram", "kg")
 
 one = Prefix("", 1)
 K = Prefix("K", 10 ** 3)
@@ -115,7 +122,8 @@ class UniUnit(object):
         self.prefix = prefix if prefix is not None else one
         if atom:
             self.fraction = ([atom], [])
-        self.fraction = fraction
+        if fraction:
+            self.fraction = fraction
         self.justify()
 
     def justify(self):
@@ -175,6 +183,13 @@ class UniUnit(object):
         else:
             return United(other, self)
 
+    def __pow__(self, power, modulo=None):
+        if not isinstance(power, int) or modulo:
+            return NotImplemented
+        return UniUnit(prefix=self.prefix ** power,
+                       fraction=(self.fraction[0] * power,
+                                 self.fraction[1] * power))
+
     def __str__(self):
         numerator, denominator = self.fraction
         if not numerator and not denominator:
@@ -189,6 +204,10 @@ class UniUnit(object):
         else:
             vs = ''.join(map(str, numerator))
         return ps + vs
+
+    def __repr__(self):
+        tpl = "UniUnit(prefix={!r}, fraction={!r})"
+        return tpl.format(self.prefix, self.fraction)
 
 
 class United(object):
@@ -237,7 +256,7 @@ class United(object):
         else:
             return NotImplemented
 
-
+Kilogram = UniUnit(atom=Kilogram)
 Mbps = M * Bit / Second
 Kb = K * Bit
 
@@ -245,7 +264,9 @@ if __name__ == '__main__':
     a = 4 * Kb
     b = 16 * Mbps
     g = 9.8 * (Metre / Second ** 2)
-    m = 100 * (K * Gram)
+    m = 100 * Kilogram
     G = m * g
+    NM = Kilogram * (Metre/Second) ** 2
     print(a / b)
     print(G)
+    print(NM, repr(NM))
