@@ -28,7 +28,13 @@ class Prefix(object):
         return "Prefix({!r}, {!r})".format(self.literal, self.value)
 
     def __str__(self):
-        return "<Prefix {} {}>".format(self.literal, self.value)
+        return self.literal
+
+    def __int__(self):
+        return self.value
+
+    def __float__(self):
+        return self.value
 
     def __truediv__(self, other):
         if not isinstance(other, Prefix):
@@ -51,6 +57,7 @@ class Prefix(object):
             return NotImplemented
         new_value = self.value ** power
         return Prefix(Prefix.CONS.get(new_value, "?"), new_value)
+
 
 one = Prefix("", 1)
 
@@ -284,3 +291,24 @@ class United(object):
                     self.value == other.value,
                     self.uunit == other.uunit))
 
+
+class Converter(object):
+    def __init__(self, table):
+        self.table = {}
+        if not table or len(table[0]) != 3:
+            raise TypeError
+        for from_unit, to_unit, by in table:
+            if not all([isinstance(from_unit, (Atom, UniUnit)),
+                        isinstance(to_unit, (Atom, UniUnit)),
+                        isinstance(by, (int, float, Prefix))]):
+                raise TypeError
+            if isinstance(by, Prefix):
+                by = int(by)
+            self.table[(from_unit, to_unit)] = by
+            self.table[(to_unit, from_unit)] = 1/by
+
+    def convert(self, united, from_unit, to_unit):
+        fix = self.table.get((from_unit, to_unit), None)
+        if fix is not None:
+            return united * fix
+        raise TypeError
